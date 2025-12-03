@@ -1,12 +1,7 @@
-:80 {
-    encode gzip
-
-    root * /usr/share/nginx/html
-    file_server
-
+investorcalculate2.online {
     handle_path /api/* {
-        reverse_proxy backend:8080
+        reverse_proxy invest_backend:8080
     }
 
-    try_files {path} /index.html
+    reverse_proxy invest_frontend:80
 }
