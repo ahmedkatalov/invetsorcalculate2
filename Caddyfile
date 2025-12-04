@@ -5,3 +5,4 @@ investorcalculate2.online {
 
     reverse_proxy invest_frontend:80
 }
+
