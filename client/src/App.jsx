@@ -131,16 +131,14 @@ export default function App() {
   }
 
   // ===== Кнопка WhatsApp (ПК) =====
-  function handleWhatsappSend() {
-    handleDownloadPdf();
+function handleWhatsappSend() {
+  handleDownloadPdf();
 
-    const text = encodeURIComponent(
-      `Отчёт по инвестору ${shareModal.investor.fullName} готов.`
-    );
-
-    // Запуск WhatsApp Web → предложит "Открыть приложение"
-    window.open(`https://web.whatsapp.com/send?text=${text}`, "_blank");
-  }
+  // открываем промежуточную страницу с deep-link
+  window.open(`/open-whatsapp.html?msg=${encodeURIComponent(
+    `Отчёт по инвестору ${shareModal.investor.fullName} готов`
+  )}`, "_blank");
+}
 
   // ===== Кнопка Share API в модалке =====
   async function handleShareAPI() {
