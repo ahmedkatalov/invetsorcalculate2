@@ -1,4 +1,3 @@
-// client/src/hooks/useInvestData.js
 import { useEffect, useState, useCallback } from "react";
 import {
   API_URL,
@@ -20,6 +19,7 @@ export function useInvestData() {
   // =============================
   useEffect(() => {
     fetchInvestors().then((d) => setInvestors(Array.isArray(d) ? d : []));
+
     fetchPayouts().then((d) =>
       setPayouts(
         Array.isArray(d)
@@ -27,6 +27,7 @@ export function useInvestData() {
               ...p,
               isWithdrawalProfit: !!p.isWithdrawalProfit,
               isWithdrawalCapital: !!p.isWithdrawalCapital,
+              isTopup: !!p.isTopup || !!p.is_topup,
             }))
           : []
       )
@@ -34,50 +35,80 @@ export function useInvestData() {
   }, []);
 
   // =============================
-  //      РАСЧЁТНЫЕ ФУНКЦИИ
+  //     ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
   // =============================
+
+  // ✔ Реинвестированные суммы
   const getReinvestedTotal = (investorId) =>
     payouts.reduce((sum, p) => {
-      if (p.investorId === investorId && p.reinvest && !p.isWithdrawalCapital) {
+      if (
+        p.investorId === investorId &&
+        p.reinvest &&
+        !p.isWithdrawalCapital &&
+        !p.isTopup
+      ) {
         return sum + (p.payoutAmount || 0);
       }
       return sum;
     }, 0);
 
-// 🔥 теперь считает ВСЕ снятия: прибыль + капитал
-const getWithdrawnCapitalTotal = (investorId) =>
-  payouts.reduce((sum, p) => {
-    if (!p || p.investorId !== investorId) return sum;
+  // ✔ Снятия (прибыль + капитал)
+  const getWithdrawnCapitalTotal = (investorId) =>
+    payouts.reduce((sum, p) => {
+      if (!p || p.investorId !== investorId) return sum;
 
-    if (p.isWithdrawalCapital || p.isWithdrawalProfit) {
-      return sum + Math.abs(p.payoutAmount || 0);
-    }
+      if (p.isWithdrawalCapital || p.isWithdrawalProfit) {
+        return sum + Math.abs(p.payoutAmount || 0);
+      }
+      return sum;
+    }, 0);
 
-    return sum;
-  }, 0);
+  // ✔ Пополнения капитала (ТОЛЬКО топапы)
+  const getTopupsTotal = (investorId) =>
+    payouts.reduce((sum, p) => {
+      if (p.investorId === investorId && p.isTopup) {
+        return sum + (p.payoutAmount || 0);
+      }
+      return sum;
+    }, 0);
 
-
+  // ✔ Текущий капитал
   const getCapitalNow = (inv) => {
     const base = Number(inv.investedAmount || 0);
-    return base + getReinvestedTotal(inv.id) - getWithdrawnCapitalTotal(inv.id);
+
+    const reinvested = getReinvestedTotal(inv.id);
+    const withdrawn = getWithdrawnCapitalTotal(inv.id);
+    const topups = getTopupsTotal(inv.id);
+
+    return base + reinvested + topups - withdrawn;
   };
 
+  // ✔ Чистая прибыль (НЕ включает topup!)
   const getCurrentNetProfit = (inv) => {
     const capital = getCapitalNow(inv);
-    const net = capital - Number(inv.investedAmount || 0);
+    const topups = getTopupsTotal(inv.id);
+
+    const net = capital - Number(inv.investedAmount || 0) - topups;
+
     return Math.max(net, 0);
   };
 
+  // ✔ Прибыль за всё время (не реинвесты, не пополнения)
   const getTotalProfitAllTime = (investorId) =>
     payouts.reduce((sum, p) => {
-      if (p.investorId === investorId && p.payoutAmount > 0) {
+      if (
+        p.investorId === investorId &&
+        p.payoutAmount > 0 &&
+        !p.reinvest &&
+        !p.isTopup
+      ) {
         return sum + p.payoutAmount;
       }
       return sum;
     }, 0);
 
   // =============================
-  //   🔥 ОБНОВЛЕНИЕ ИНВЕСТОРА (PUT)
+  //   ОБНОВЛЕНИЕ ИНВЕСТОРА
   // =============================
   const updateInvestor = useCallback(async (id, updates) => {
     const token = localStorage.getItem("token");
@@ -101,7 +132,6 @@ const getWithdrawnCapitalTotal = (investorId) =>
       return;
     }
 
-    // Локальное обновление state
     setInvestors((prev) =>
       prev.map((i) =>
         i.id === id
@@ -132,31 +162,36 @@ const getWithdrawnCapitalTotal = (investorId) =>
     else await createTakeProfit(investorId, month, amount);
 
     const fresh = await fetchPayouts();
-    setPayouts(fresh);
+    setPayouts(
+      fresh.map((p) => ({
+        ...p,
+        isTopup: !!p.isTopup || !!p.is_topup,
+      }))
+    );
   }
 
-async function deleteInvestor(id) {
-  const token = localStorage.getItem("token");
+  // =============================
+  //   УДАЛЕНИЕ ИНВЕСТОРА
+  // =============================
+  async function deleteInvestor(id) {
+    const token = localStorage.getItem("token");
 
-  const res = await fetch(`${API_URL}/investors/${id}`, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
+    const res = await fetch(`${API_URL}/investors/${id}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
 
-  if (!res.ok) {
-    console.error("DELETE FAILED:", await res.text());
-    return false;
+    if (!res.ok) {
+      console.error("DELETE FAILED:", await res.text());
+      return false;
+    }
+
+    setInvestors((prev) => prev.filter((i) => i.id !== id));
+    return true;
   }
-
-  // удаляем из state
-  setInvestors((prev) => prev.filter((i) => i.id !== id));
-
-  return true;
-}
-
 
   // =============================
   //  СНЯТИЕ КАПИТАЛА
@@ -165,28 +200,34 @@ async function deleteInvestor(id) {
     await createCapitalWithdraw(investorId, month, amount);
 
     const fresh = await fetchPayouts();
-    setPayouts(fresh);
+    setPayouts(
+      fresh.map((p) => ({
+        ...p,
+        isTopup: !!p.isTopup || !!p.is_topup,
+      }))
+    );
   }
 
   // =============================
-  //   ЭКСПОРТ ДАННЫХ ХУКА
+  // ЭКСПОРТ ИЗ useInvestData
   // =============================
-return {
-  investors,
-  payouts,
-  percents,
-  setPercents,
+  return {
+    investors,
+    payouts,
+    percents,
+    setPercents,
+    setPayouts,
+    addInvestor,
+    savePayout,
+    withdrawCapital,
+    updateInvestor,
+    deleteInvestor,
 
-  addInvestor,
-  savePayout,
-  withdrawCapital,
-  updateInvestor,
-  deleteInvestor,   // ← добавили
-
-  getCapitalNow,
-  getCurrentNetProfit,
-  getTotalProfitAllTime,
-  getWithdrawnCapitalTotal,
-};
-
+    // расчётные функции
+    getCapitalNow,
+    getCurrentNetProfit,
+    getTotalProfitAllTime,
+    getWithdrawnCapitalTotal,
+    getTopupsTotal,
+  };
 }

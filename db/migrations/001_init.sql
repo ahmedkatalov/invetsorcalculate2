@@ -18,11 +18,15 @@ CREATE TABLE payouts (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+
+
+ALTER TABLE payouts
+ADD COLUMN is_topup BOOLEAN NOT NULL DEFAULT FALSE;
+
+
 ALTER TABLE payouts
 ADD COLUMN is_withdrawal_profit BOOLEAN NOT NULL DEFAULT FALSE;
 
 ALTER TABLE payouts
 ADD COLUMN is_withdrawal_capital BOOLEAN NOT NULL DEFAULT FALSE;
-
--- старый is_withdrawal можешь оставить или удалить позже
 
