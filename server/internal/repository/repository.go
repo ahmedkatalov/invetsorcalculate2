@@ -99,9 +99,10 @@ func (r *Repository) GetInvestorByID(ctx context.Context, id int64) (*models.Inv
 
 func (r *Repository) GetPayouts(ctx context.Context) ([]models.Payout, error) {
     rows, err := r.db.QueryContext(ctx,
-        `SELECT id, investor_id, period_month, payout_amount, reinvest,
-                is_withdrawal_profit, is_withdrawal_capital, is_topup, created_at
-         FROM payouts ORDER BY period_month, id`)
+        `SELECT id, investor_id, period_date, payout_amount,
+                reinvest, is_withdrawal_profit, is_withdrawal_capital,
+                is_topup, created_at
+         FROM payouts ORDER BY period_date, id`)
     if err != nil {
         return nil, err
     }
@@ -113,7 +114,7 @@ func (r *Repository) GetPayouts(ctx context.Context) ([]models.Payout, error) {
         if err := rows.Scan(
             &p.ID,
             &p.InvestorID,
-            &p.PeriodMonth,
+            &p.PeriodDate,
             &p.PayoutAmount,
             &p.Reinvest,
             &p.IsWithdrawalProfit,
@@ -129,20 +130,21 @@ func (r *Repository) GetPayouts(ctx context.Context) ([]models.Payout, error) {
     return out, nil
 }
 
-
+//
 // ===============================
 //    ВЫПЛАТЫ (reinvest / withdraw)
 // ===============================
+//
 
 func (r *Repository) CreatePayout(ctx context.Context, p *models.Payout) error {
     return r.db.QueryRowContext(ctx,
         `INSERT INTO payouts (
-            investor_id, period_month, payout_amount, 
+            investor_id, period_date, payout_amount,
             reinvest, is_withdrawal_profit, is_withdrawal_capital, is_topup
         ) VALUES ($1, $2, $3, $4, $5, $6, FALSE)
         RETURNING id, created_at`,
         p.InvestorID,
-        p.PeriodMonth,
+        p.PeriodDate,
         p.PayoutAmount,
         p.Reinvest,
         p.IsWithdrawalProfit,
@@ -150,20 +152,21 @@ func (r *Repository) CreatePayout(ctx context.Context, p *models.Payout) error {
     ).Scan(&p.ID, &p.CreatedAt)
 }
 
-
+//
 // ===============================
 //       ПОПОЛНЕНИЕ КАПИТАЛА
 // ===============================
+//
 
 func (r *Repository) CreateTopup(ctx context.Context, p *models.Payout) error {
     return r.db.QueryRowContext(ctx,
         `INSERT INTO payouts (
-            investor_id, period_month, payout_amount,
+            investor_id, period_date, payout_amount,
             reinvest, is_withdrawal_profit, is_withdrawal_capital, is_topup
         ) VALUES ($1, $2, $3, FALSE, FALSE, FALSE, TRUE)
         RETURNING id, created_at`,
         p.InvestorID,
-        p.PeriodMonth,
+        p.PeriodDate,
         p.PayoutAmount,
     ).Scan(&p.ID, &p.CreatedAt)
 }

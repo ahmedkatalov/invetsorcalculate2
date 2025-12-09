@@ -123,9 +123,9 @@ func (s *Server) handleTopup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		InvestorID  int64   `json:"investorId"`
-		PeriodMonth string  `json:"periodMonth"` // теперь приходит YYYY-MM-DD
-		Amount      float64 `json:"amount"`
+		InvestorID int64   `json:"investorId"`
+		Date       string  `json:"date"` // YYYY-MM-DD
+		Amount     float64 `json:"amount"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -133,20 +133,19 @@ func (s *Server) handleTopup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✔ Теперь принимаем YYYY-MM-DD
-	period, err := time.Parse("2006-01-02", req.PeriodMonth)
+	period, err := time.Parse("2006-01-02", req.Date)
 	if err != nil {
-		writeJSON(w, 400, errorResponse{Error: "invalid periodMonth, must be YYYY-MM-DD"})
+		writeJSON(w, 400, errorResponse{Error: "invalid date, must be YYYY-MM-DD"})
 		return
 	}
 
 	payout := models.Payout{
-		InvestorID:         req.InvestorID,
-		PeriodMonth:        period,
-		PayoutAmount:       req.Amount,
-		IsTopup:            true,
-		Reinvest:           false,
-		IsWithdrawalProfit: false,
+		InvestorID:          req.InvestorID,
+		PeriodDate:          period,
+		PayoutAmount:        req.Amount,
+		IsTopup:             true,
+		Reinvest:            false,
+		IsWithdrawalProfit:  false,
 		IsWithdrawalCapital: false,
 	}
 
@@ -180,7 +179,7 @@ func (s *Server) handlePayouts(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		var req struct {
 			InvestorID          int64   `json:"investorId"`
-			PeriodMonth         string  `json:"periodMonth"`
+			Date                string  `json:"date"` // YYYY-MM-DD
 			PayoutAmount        float64 `json:"payoutAmount"`
 			Reinvest            bool    `json:"reinvest"`
 			IsWithdrawalProfit  bool    `json:"isWithdrawalProfit"`
@@ -192,16 +191,15 @@ func (s *Server) handlePayouts(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// ✔ исправлено: теперь формат YYYY-MM-DD
-		period, err := time.Parse("2006-01-02", req.PeriodMonth)
+		period, err := time.Parse("2006-01-02", req.Date)
 		if err != nil {
-			writeJSON(w, 400, errorResponse{Error: "invalid periodMonth, must be YYYY-MM-DD"})
+			writeJSON(w, 400, errorResponse{Error: "invalid date, must be YYYY-MM-DD"})
 			return
 		}
 
 		p := models.Payout{
 			InvestorID:          req.InvestorID,
-			PeriodMonth:         period,
+			PeriodDate:          period,
 			PayoutAmount:        req.PayoutAmount,
 			Reinvest:            req.Reinvest,
 			IsWithdrawalProfit:  req.IsWithdrawalProfit,
