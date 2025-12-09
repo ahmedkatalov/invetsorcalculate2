@@ -15,9 +15,19 @@ async function loadFont() {
 // Формат ₽
 const fmt = (v) => new Intl.NumberFormat("ru-RU").format(v);
 
-/**
- * Генерация красивого PDF-отчёта
- */
+// Универсальный парсер даты
+function parseAnyDate(str) {
+  if (!str) return null;
+
+  // Полный формат YYYY-MM-DD
+  if (str.length === 10) return new Date(str);
+
+  // Только YYYY-MM
+  if (str.length === 7) return new Date(str + "-01");
+
+  return null;
+}
+
 export async function generateInvestorPdfBlob({
   investor,
   payouts,
@@ -53,10 +63,10 @@ export async function generateInvestorPdfBlob({
   // ===== РАСЧЁТЫ =====
   //
   const invested = investor.investedAmount;
-  const capital = getCapitalNow(investor);           // капитал с учётом пополнений
-  const profitNow = getCurrentNetProfit(investor);   // чистая прибыль (без пополнений)
-  const topups = getTopupsTotal(investor.id);        // все пополнения
-  const withdrawn = withdrawnTotal(investor.id);     // снято (прибыль + капитал)
+  const capital = getCapitalNow(investor);
+  const profitNow = getCurrentNetProfit(investor);
+  const topups = getTopupsTotal(investor.id);
+  const withdrawn = withdrawnTotal(investor.id);
 
   //
   // ===== ТАБЛИЦА ИТОГОВ =====
@@ -75,7 +85,6 @@ export async function generateInvestorPdfBlob({
     body: summary,
     theme: "striped",
     margin: { left: 40, right: 40 },
-
     headStyles: {
       fillColor: [34, 197, 94],
       font: "Montserrat",
@@ -107,9 +116,10 @@ export async function generateInvestorPdfBlob({
       else if (p.isWithdrawalProfit) type = "Снятие прибыли";
       else type = "Операция";
 
-      // форматируем дату
-      const formattedMonth = p.periodMonth
-        ? new Date(p.periodMonth + "-01").toLocaleDateString("ru-RU", {
+      const date = parseAnyDate(p.periodMonth);
+      const formatted = date
+        ? date.toLocaleDateString("ru-RU", {
+            day: "numeric",
             month: "short",
             year: "2-digit",
           })
@@ -118,12 +128,12 @@ export async function generateInvestorPdfBlob({
       const sign = p.payoutAmount > 0 ? "+" : "";
       const amount = `${sign}${fmt(Math.abs(p.payoutAmount))} ₽`;
 
-      return [formattedMonth, type, amount];
+      return [formatted, type, amount];
     });
 
   autoTable(doc, {
     startY: doc.lastAutoTable.finalY + 40,
-    head: [["Месяц", "Тип операции", "Сумма"]],
+    head: [["Дата", "Тип операции", "Сумма"]],
     body: rows,
     theme: "grid",
     margin: { left: 40, right: 40 },
@@ -140,8 +150,8 @@ export async function generateInvestorPdfBlob({
       fontSize: 12,
     },
     columnStyles: {
-      0: { cellWidth: 80 },
-      1: { cellWidth: 260 },
+      0: { cellWidth: 90 },
+      1: { cellWidth: 250 },
       2: { cellWidth: 80, halign: "right" },
     },
   });
