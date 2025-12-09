@@ -1,9 +1,4 @@
 // client/src/api/api.js
-
-// ===============================
-//  BASE API CONFIG
-// ===============================
-
 export const API_URL =
   import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.trim() !== ""
     ? import.meta.env.VITE_API_URL
@@ -17,9 +12,7 @@ function authHeaders() {
   };
 }
 
-// ===============================
-//  AUTH
-// ===============================
+// ============ AUTH ============
 
 export async function registerUser(email, password, secretCode) {
   const res = await fetch(`${API_URL}/register`, {
@@ -49,9 +42,7 @@ export async function loginUser(email, password) {
   return data;
 }
 
-// ===============================
-//  INVESTORS
-// ===============================
+// ============ INVESTORS ============
 
 export async function fetchInvestors() {
   const res = await fetch(`${API_URL}/investors`, {
@@ -61,9 +52,7 @@ export async function fetchInvestors() {
   if (!res.ok) return [];
 
   const data = await res.json();
-  const safe = Array.isArray(data) ? data : [];
-
-  return safe.map((i) => ({
+  return (Array.isArray(data) ? data : []).map((i) => ({
     id: i.id,
     fullName: i.full_name,
     investedAmount: Number(i.invested_amount),
@@ -92,14 +81,10 @@ export async function createInvestor(fullName, investedAmount) {
   };
 }
 
-// ===============================
-//  PAYOUTS
-// ===============================
+// ============ PAYOUTS ============
 
 export async function fetchPayouts() {
-  const res = await fetch(`${API_URL}/payouts`, {
-    headers: authHeaders(),
-  });
+  const res = await fetch(`${API_URL}/payouts`, { headers: authHeaders() });
 
   if (!res.ok) return [];
 
@@ -109,34 +94,25 @@ export async function fetchPayouts() {
   return safe.map((p) => ({
     id: p.id,
     investorId: p.investor_id,
-
-    // 🔥 Сохраняем полную дату
-    periodDate: p.period_month, // YYYY-MM-DD
-
-    // 🔥 Для таблиц по месяцам
-    periodMonth: p.period_month?.slice(0, 7) || null,
-
+    periodDate: p.period_date,             // ← ВСЯ ДАТА YYYY-MM-DD
+    periodMonth: p.period_date?.slice(0, 7), // ← ДЛЯ ТАБЛИЦЫ (2025-12)
     payoutAmount: Number(p.payout_amount),
     reinvest: p.reinvest,
     isWithdrawalProfit: p.is_withdrawal_profit,
     isWithdrawalCapital: p.is_withdrawal_capital,
-    isTopup: p.is_topup || false,
+    isTopup: p.is_topup,
     createdAt: p.created_at,
   }));
 }
 
-// ===============================
-//  MAIN OPERATIONS
-// ===============================
-
-// ► Реинвест
+// === Реинвест ===
 export async function createReinvest(investorId, date, amount) {
   const res = await fetch(`${API_URL}/payouts`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({
       investorId,
-      date, // YYYY-MM-DD
+      date, // ✔ правильное поле
       payoutAmount: amount,
       reinvest: true,
       isWithdrawalProfit: false,
@@ -150,7 +126,7 @@ export async function createReinvest(investorId, date, amount) {
   return data;
 }
 
-// ► Забрал прибыль
+// === Снятие прибыли ===
 export async function createTakeProfit(investorId, date, amount) {
   const res = await fetch(`${API_URL}/payouts`, {
     method: "POST",
@@ -171,14 +147,14 @@ export async function createTakeProfit(investorId, date, amount) {
   return data;
 }
 
-// ► Пополнение капитала
+// === Пополнение ===
 export async function createTopup(investorId, date, amount) {
   const res = await fetch(`${API_URL}/payouts/topup`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({
       investorId,
-      date, // YYYY-MM-DD
+      date,   // ← правильно!
       amount,
     }),
   });
@@ -189,7 +165,7 @@ export async function createTopup(investorId, date, amount) {
   return data;
 }
 
-// ► Снятие капитала
+// === Снятие капитала ===
 export async function createCapitalWithdraw(investorId, date, amount) {
   const res = await fetch(`${API_URL}/payouts`, {
     method: "POST",
@@ -205,7 +181,7 @@ export async function createCapitalWithdraw(investorId, date, amount) {
   });
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to create withdrawal");
+  if (!res.ok) throw new Error(data.error || "Failed to withdraw capital");
 
   return data;
 }
