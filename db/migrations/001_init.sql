@@ -12,12 +12,14 @@ CREATE TABLE payouts (
     id SERIAL PRIMARY KEY,
     investor_id INT NOT NULL REFERENCES investors(id) ON DELETE CASCADE,
 
-    -- ❗ теперь тут хранится полная дата YYYY-MM-DD
-    period_date DATE NOT NULL,
+    -- ⭐ старое поле: месяц
+    period_month DATE,
+
+    -- ⭐ новое поле: полная дата
+    period_date DATE,
 
     payout_amount NUMERIC(18,2) NOT NULL,
 
-    -- типы операций
     reinvest BOOLEAN NOT NULL DEFAULT FALSE,
     is_topup BOOLEAN NOT NULL DEFAULT FALSE,
     is_withdrawal_profit BOOLEAN NOT NULL DEFAULT FALSE,

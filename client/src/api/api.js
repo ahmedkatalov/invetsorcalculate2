@@ -1,4 +1,5 @@
 // client/src/api/api.js
+
 export const API_URL =
   import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.trim() !== ""
     ? import.meta.env.VITE_API_URL
@@ -91,18 +92,29 @@ export async function fetchPayouts() {
   const data = await res.json();
   const safe = Array.isArray(data) ? data : [];
 
-  return safe.map((p) => ({
-    id: p.id,
-    investorId: p.investor_id,
-    periodDate: p.period_date,             // ← ВСЯ ДАТА YYYY-MM-DD
-    periodMonth: p.period_date?.slice(0, 7), // ← ДЛЯ ТАБЛИЦЫ (2025-12)
-    payoutAmount: Number(p.payout_amount),
-    reinvest: p.reinvest,
-    isWithdrawalProfit: p.is_withdrawal_profit,
-    isWithdrawalCapital: p.is_withdrawal_capital,
-    isTopup: p.is_topup,
-    createdAt: p.created_at,
-  }));
+  return safe.map((p) => {
+    // backend отдаёт period_date и period_month как ISO строки
+    const rawDate =
+      p.period_date ||
+      p.period_month ||
+      null; // fallback для старых записей, если что-то не заполнилось
+
+    const periodDate = rawDate ? String(rawDate).slice(0, 10) : null; // YYYY-MM-DD
+    const periodMonth = rawDate ? String(rawDate).slice(0, 7) : null; // YYYY-MM
+
+    return {
+      id: p.id,
+      investorId: p.investor_id,
+      periodDate,
+      periodMonth,
+      payoutAmount: Number(p.payout_amount),
+      reinvest: p.reinvest,
+      isWithdrawalProfit: p.is_withdrawal_profit,
+      isWithdrawalCapital: p.is_withdrawal_capital,
+      isTopup: p.is_topup,
+      createdAt: p.created_at,
+    };
+  });
 }
 
 // === Реинвест ===
@@ -112,7 +124,7 @@ export async function createReinvest(investorId, date, amount) {
     headers: authHeaders(),
     body: JSON.stringify({
       investorId,
-      date, // ✔ правильное поле
+      date, // YYYY-MM-DD
       payoutAmount: amount,
       reinvest: true,
       isWithdrawalProfit: false,
@@ -122,7 +134,6 @@ export async function createReinvest(investorId, date, amount) {
 
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to create payout");
-
   return data;
 }
 
@@ -143,25 +154,23 @@ export async function createTakeProfit(investorId, date, amount) {
 
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to create payout");
-
   return data;
 }
 
-// === Пополнение ===
+// === Пополнение капитала ===
 export async function createTopup(investorId, date, amount) {
   const res = await fetch(`${API_URL}/payouts/topup`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({
       investorId,
-      date,   // ← правильно!
+      date,
       amount,
     }),
   });
 
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to top up");
-
   return data;
 }
 
@@ -182,6 +191,5 @@ export async function createCapitalWithdraw(investorId, date, amount) {
 
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to withdraw capital");
-
   return data;
 }
