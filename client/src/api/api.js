@@ -84,6 +84,32 @@ export async function createInvestor(fullName, investedAmount) {
 
 // ============ PAYOUTS ============
 
+// единая нормализация payout, чтобы везде структура была одинаковой
+function normalizePayout(p) {
+  if (!p) return null;
+
+  // backend может прислать period_date или period_month
+  const rawDate = p.period_date || p.period_month || null;
+
+  const periodDate = rawDate ? String(rawDate).slice(0, 10) : null; // YYYY-MM-DD
+  const periodMonth = rawDate ? String(rawDate).slice(0, 7) : null; // YYYY-MM
+
+  return {
+    id: p.id,
+    investorId: p.investor_id,
+    periodDate,
+    periodMonth,
+    payoutAmount: Number(p.payout_amount),
+
+    reinvest: !!p.reinvest,
+    isWithdrawalProfit: !!p.is_withdrawal_profit,
+    isWithdrawalCapital: !!p.is_withdrawal_capital,
+    isTopup: !!p.is_topup,
+
+    createdAt: p.created_at,
+  };
+}
+
 export async function fetchPayouts() {
   const res = await fetch(`${API_URL}/payouts`, { headers: authHeaders() });
 
@@ -92,29 +118,7 @@ export async function fetchPayouts() {
   const data = await res.json();
   const safe = Array.isArray(data) ? data : [];
 
-  return safe.map((p) => {
-    // backend отдаёт period_date и period_month как ISO строки
-    const rawDate =
-      p.period_date ||
-      p.period_month ||
-      null; // fallback для старых записей, если что-то не заполнилось
-
-    const periodDate = rawDate ? String(rawDate).slice(0, 10) : null; // YYYY-MM-DD
-    const periodMonth = rawDate ? String(rawDate).slice(0, 7) : null; // YYYY-MM
-
-    return {
-      id: p.id,
-      investorId: p.investor_id,
-      periodDate,
-      periodMonth,
-      payoutAmount: Number(p.payout_amount),
-      reinvest: p.reinvest,
-      isWithdrawalProfit: p.is_withdrawal_profit,
-      isWithdrawalCapital: p.is_withdrawal_capital,
-      isTopup: p.is_topup,
-      createdAt: p.created_at,
-    };
-  });
+  return safe.map(normalizePayout);
 }
 
 // === Реинвест ===
@@ -124,7 +128,7 @@ export async function createReinvest(investorId, date, amount) {
     headers: authHeaders(),
     body: JSON.stringify({
       investorId,
-      date, // YYYY-MM-DD
+      date,                 // YYYY-MM-DD
       payoutAmount: amount,
       reinvest: true,
       isWithdrawalProfit: false,
@@ -182,7 +186,7 @@ export async function createCapitalWithdraw(investorId, date, amount) {
     body: JSON.stringify({
       investorId,
       date,
-      payoutAmount: -Math.abs(amount),
+      payoutAmount: -Math.abs(amount), // отрицательное значение
       reinvest: false,
       isWithdrawalProfit: false,
       isWithdrawalCapital: true,
